@@ -18,18 +18,43 @@ function addOrReplaceColorRule(className, barColor, textColor) {
 .bar-wrapper.${className} rect.bar, .bar-wrapper.${className} .bar { fill: ${barColor} !important; }
 .bar-wrapper.${className} .bar-label { fill: ${textColor} !important; }
 `;
-    const re = new RegExp(`/\\* dynamic: ${className} \\*/[\\s\\S]*?\\n`, 'm');
-    if (re.test(tag.textContent)) {
-        tag.textContent = tag.textContent.replace(re, css);
+    // Простая замена: если блок с комментарием dynamic: <className> найден — заменим, иначе добавим
+    const marker = `/* dynamic: ${className} */`;
+    if (tag.textContent.includes(marker)) {
+        // заменим блок целиком (находим начало маркера и следующий перенос строки)
+        const idx = tag.textContent.indexOf(marker);
+        // ищем следующий маркер или конец строки — достаточно удалить от idx до следующего "/* dynamic:" или конца
+        const nextMarkerIdx = tag.textContent.indexOf('/* dynamic:', idx + 1);
+        if (nextMarkerIdx === -1) {
+            tag.textContent = tag.textContent.slice(0, idx) + css;
+        } else {
+            tag.textContent = tag.textContent.slice(0, idx) + css + tag.textContent.slice(nextMarkerIdx);
+        }
     } else {
         tag.appendChild(document.createTextNode(css));
     }
 }
 
-function toISOIfNeeded(s) {
-    // input from <input type="date"> is already YYYY-MM-DD; ensure string
-    if (!s) return s;
-    return ('' + s);
+// --- localStorage
+const STORAGE_KEY = 'gantt_tasks_v1';
+function saveTasksToStorage(tasksArray) {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasksArray));
+    } catch (e) {
+        console.warn('Не удалось сохранить задачи в localStorage', e);
+    }
+}
+function loadTasksFromStorage() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return null;
+        return parsed;
+    } catch (e) {
+        console.warn('Ошибка при чтении localStorage', e);
+        return null;
+    }
 }
 
 // --- Начальные задачи (включая "якоря" для диапазона)
@@ -55,10 +80,10 @@ function render() {
     const options = {
         view_mode: VIEW_MODES[currentViewIndex],
         date_format: 'YYYY-MM-DD',
-        bar_height: 28,        // чуть выше, чтобы текст помещался
-        padding: 10,           // меньше вертикальных отступов
-        column_width: 30,      // ширина колонки (можно подбирать)
-        container_height: 720, // фиксированная высота (можно 'auto')
+        bar_height: 28,
+        padding: 10,
+        column_width: 30,
+        container_height: 720,
         view_mode_select: false,
         popup_on: 'click',
         auto_move_label: true
@@ -67,9 +92,37 @@ function render() {
     gantt = new Gantt('#gantt', tasks, options);
 }
 
-// --- Инициализация UI
+// --- При загрузке страницы: пытаемся восстановить задачи
+function ensureAnchorsPresent() {
+    if (!tasks.some(t => t.id === 'anchor-start')) {
+        tasks.unshift({ id: 'anchor-start', name: 'anchor-start', start: '2025-09-01', end: '2025-09-01', custom_class: 'anchor' });
+    }
+    if (!tasks.some(t => t.id === 'anchor-end')) {
+        tasks.push({ id: 'anchor-end', name: 'anchor-end', start: '2026-12-31', end: '2026-12-31', custom_class: 'anchor' });
+    }
+}
+
 window.addEventListener('DOMContentLoaded', () => {
-    // Рендерим первый раз
+    // Попытка загрузить из localStorage
+    const stored = loadTasksFromStorage();
+    if (stored && Array.isArray(stored) && stored.length > 0) {
+        // Заменяем содержимое tasks на сохранённый массив (мутируем существующий массив)
+        tasks.splice(0, tasks.length, ...stored);
+        // Гарантируем наличие якорей диапазона
+        ensureAnchorsPresent();
+
+        // Восстанавливаем CSS-правила для задач, где есть сохранённые цвета
+        tasks.forEach(t => {
+            if (t.custom_class && t.barColor && t.textColor) {
+                addOrReplaceColorRule(t.custom_class, t.barColor, t.textColor);
+            }
+        });
+    } else {
+        // Нет сохранений — сохраняем исходный набор
+        saveTasksToStorage(tasks);
+    }
+
+    // Первый рендер
     render();
     document.getElementById('zoomLabel').textContent = VIEW_MODES[currentViewIndex];
 
@@ -91,15 +144,23 @@ window.addEventListener('DOMContentLoaded', () => {
         const id = 't_' + Date.now();
         const cls = 'c_' + id.replace(/[^a-zA-Z0-9_-]/g, '');
 
+        // создаём CSS правило (и сохраняем цвета в объект задачи)
         addOrReplaceColorRule(cls, barColor, textColor);
 
-        tasks.push({
+        const newTask = {
             id,
             name,
-            start: toISOIfNeeded(startRaw),
-            end: toISOIfNeeded(endRaw),
-            custom_class: cls
-        });
+            start: ('' + startRaw),
+            end: ('' + endRaw),
+            custom_class: cls,
+            barColor,    // сохраняем цвет, чтобы восстановить при загрузке
+            textColor    // сохраняем цвет текста
+        };
+
+        tasks.push(newTask);
+
+        // Сохраняем в localStorage сразу после добавления
+        saveTasksToStorage(tasks);
 
         // Перерисуем (контейнер очищается внутри render)
         render();
@@ -126,19 +187,15 @@ window.addEventListener('DOMContentLoaded', () => {
         else render();
     });
 
-    // Обработчик клика на задаче (пример: открыть alert с инфой)
-    // можно заменить на показ формы редактирования
+    // Клик по задаче — (пока не изменяем логику, но можно будет дополнять)
     document.querySelector('#gantt').addEventListener('click', (ev) => {
         const target = ev.target;
-        // библиотека содержит data-task-id на bar-wrapper
         const wrapper = target.closest && target.closest('.bar-wrapper');
         if (wrapper && wrapper.dataset && wrapper.dataset.taskId) {
             const tid = wrapper.dataset.taskId;
-            // Простейший пример — показываем окно с данными
             const task = tasks.find(t => t.id === tid);
             if (task) {
-                // Пока просто демонстрация; заменим на форму редактирования при необходимости
-                // alert(`Задача: ${task.name}\n${task.start} → ${task.end}`);
+                // заглушка — ничего не делаем, оставляем поведение как было
             }
         }
     });
