@@ -6,9 +6,8 @@
     --accent: #2563eb; /* синий */
     --warn: #dc2626; /* красный */
     --row-height: 56px;
-    --day-width: 28px; /* ширина дня (контент) */
+    --day-width: 28px; /* ширина дня */
     --bar-width: 20px; /* фиксированная длина бара */
-    --day-sep: 1px; /* толщина разделителя между днями (учитывается в JS) */
     --border: #e6e9ee;
     --text: #0f172a;
 }
@@ -46,7 +45,7 @@ body {
     font-size: 13px;
 }
 
-/* Верхняя панель формы (над диаграммой) */
+/* Верхняя панель формы (расположена над диаграммой, полностью по ширине) */
 .topbar {
     padding: 12px 14px;
     border-bottom: 1px solid var(--border);
@@ -116,7 +115,7 @@ button.muted {
 /* month and days rows */
 .months-row {
     height: 24px;
-    display: ;
+    display: inline-flex;
     align-items: center;
 }
 .month-block {
@@ -139,28 +138,15 @@ button.muted {
     text-align: center;
     font-size: 11px;
     color: var(--muted);
-    border-right: var(--day-sep) solid rgba(15, 23, 42, 0.03);
+    border-right: 1px solid rgba(15, 23, 42, 0.03);
     padding-top: 2px;
 }
 
-/* body: groups column left + main grid */
+/* body: grid + groups column */
 .timeline-body {
     display: flex;
     gap: 8px;
     align-items: flex-start;
-}
-
-/* groups column on the LEFT */
-.groups-column {
-    width: 300px;
-    min-width: 200px;
-    max-width: 360px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: #fff;
-    padding: 8px;
-    overflow: auto;
-    height: calc(70vh);
 }
 
 /* main scrollable grid */
@@ -171,6 +157,19 @@ button.muted {
     border: 1px solid var(--border);
     background: #fff;
     padding: 8px;
+    height: calc(70vh);
+}
+
+/* groups column on the RIGHT */
+.groups-column {
+    width: 300px;
+    min-width: 200px;
+    max-width: 360px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    padding: 8px;
+    overflow: auto;
     height: calc(70vh);
 }
 
@@ -187,7 +186,7 @@ button.muted {
     background: linear-gradient(180deg, #fff, #fbfdff);
     margin-bottom: 2px;
 }
-/* row inner - uses repeating background for day separators */
+/* subtle vertical separators via background on row inner */
 .row-inner {
     width: max-content;
     height: 100%;
@@ -227,7 +226,7 @@ button.muted {
     background: var(--warn);
 }
 
-/* group labels (left column) align with rows */
+/* group labels (right column) align with rows */
 .group-label {
     height: var(--row-height);
     min-height: var(--row-height);

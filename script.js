@@ -21,8 +21,6 @@ const END_DATE = new Date(2026, 11, 31);
 const STORAGE_KEY = 'meetings_v1';
 const DAY_MS = 24*60*60*1000;
 const DAY_WIDTH_PX = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--day-width')) || 28;
-const DAY_SEP_PX = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--day-sep')) || 1; // separator width from CSS
-const UNIT = DAY_WIDTH_PX + DAY_SEP_PX; // unit width for one day including separator
 const BAR_WIDTH_PX = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bar-width')) || 20;
 
 function dateToISO(d) {
@@ -100,7 +98,7 @@ function renderHeader() {
     monthsRow.innerHTML = '';
     daysRow.innerHTML = '';
 
-    // Months: group DAYS by year-month
+    // Months: group days by year-month
     let i = 0;
     while (i < DAYS.length) {
         const d = DAYS[i].date;
@@ -115,8 +113,7 @@ function renderHeader() {
         const label = new Date(year, month, 1).toLocaleString('ru', { month: 'long', year: 'numeric' });
         const block = document.createElement('div');
         block.className = 'month-block';
-        // width = count * (dayWidth + separator) to account for borders between days
-        block.style.width = (count * UNIT) + 'px';
+        block.style.width = (count * DAY_WIDTH_PX) + 'px';
         block.textContent = label;
         monthsRow.appendChild(block);
         i += count;
@@ -130,7 +127,7 @@ function renderHeader() {
         cell.style.width = DAY_WIDTH_PX + 'px';
         cell.style.minWidth = DAY_WIDTH_PX + 'px';
         cell.textContent = dObj.date.getDate();
-        // bold first of month
+        // highlight first of month with bolder text
         if (dObj.date.getDate() === 1) {
             cell.style.fontWeight = 700;
             cell.style.color = '#0f172a';
@@ -139,7 +136,7 @@ function renderHeader() {
     }
 }
 
-// RENDER GRID and groups (groups column is LEFT now)
+// RENDER GRID and groups
 function renderGrid(meetings) {
     timelineGrid.innerHTML = '';
     groupsColumn.innerHTML = '';
@@ -147,7 +144,7 @@ function renderGrid(meetings) {
     const gridInner = document.createElement('div');
     gridInner.className = 'grid-inner';
 
-    // for each group create a row with inner width = DAYS.length * UNIT
+    // for each group create a row with inner width = DAYS.length * DAY_WIDTH
     GROUPS.forEach((name, gi) => {
         const row = document.createElement('div');
         row.className = 'group-row';
@@ -155,7 +152,7 @@ function renderGrid(meetings) {
 
         const rowInner = document.createElement('div');
         rowInner.className = 'row-inner';
-        rowInner.style.width = (DAYS.length * UNIT) + 'px';
+        rowInner.style.width = (DAYS.length * DAY_WIDTH_PX) + 'px';
         rowInner.style.height = '100%';
         rowInner.style.position = 'relative';
         row.appendChild(rowInner);
@@ -169,7 +166,7 @@ function renderGrid(meetings) {
 
     timelineGrid.appendChild(gridInner);
 
-    // add meetings (bars)
+    // add meetings
     meetings.forEach(m => {
         const { id, groupIndex, date, type } = m;
         const gidx = Number(groupIndex);
@@ -189,8 +186,7 @@ function renderGrid(meetings) {
         bar.dataset.id = id;
         bar.textContent = (type === 'В' ? 'В' : 'О');
 
-        // compute left position using UNIT (day width + separator)
-        const left = idx * UNIT + Math.max(0, Math.floor((DAY_WIDTH_PX - BAR_WIDTH_PX) / 2));
+        const left = idx * DAY_WIDTH_PX + Math.max(0, Math.floor((DAY_WIDTH_PX - BAR_WIDTH_PX) / 2));
         bar.style.left = left + 'px';
 
         rowInner.appendChild(bar);
@@ -211,14 +207,16 @@ meetings = meetings.filter(m => {
 renderHeader();
 renderGrid(meetings);
 
-// Sync scrolling: grid <-> header horizontally, grid <-> groups vertically
+// Sync scrolling: when grid scrolls horizontally, header scrolls; vertical maps to groups column
 timelineGrid.addEventListener('scroll', () => {
     timelineHeader.scrollLeft = timelineGrid.scrollLeft;
     groupsColumn.scrollTop = timelineGrid.scrollTop;
 });
+// allow header scroll to drive grid
 timelineHeader.addEventListener('scroll', () => {
     timelineGrid.scrollLeft = timelineHeader.scrollLeft;
 });
+// vertical sync back (if user scrolls groups list)
 groupsColumn.addEventListener('scroll', () => {
     timelineGrid.scrollTop = groupsColumn.scrollTop;
 });
@@ -239,7 +237,7 @@ meetingForm.addEventListener('submit', (ev) => {
     saveMeetings(meetings);
     renderGrid(meetings);
     scrollToMeeting(newMeeting);
-    // reset date to START_DATE for predictability
+    // keep date as next day (optional) — reset to START_DATE for predictability
     dateInput.value = dateToISO(START_DATE);
 });
 
@@ -255,9 +253,11 @@ clearBtn.addEventListener('click', () => {
 function scrollToMeeting(meeting) {
     const dayObj = DAYS.find(d => d.iso === meeting.date);
     if (!dayObj) return;
-    const left = dayObj.index * UNIT;
+    const left = dayObj.index * DAY_WIDTH_PX;
+    // scroll horizontally so day is visible (offset a bit left)
     timelineGrid.scrollLeft = Math.max(0, left - 80);
     timelineHeader.scrollLeft = timelineGrid.scrollLeft;
+    // vertical: compute top by group index * row height
     const rowH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--row-height')) || 56;
     const top = meeting.groupIndex * rowH;
     groupsColumn.scrollTop = top;
