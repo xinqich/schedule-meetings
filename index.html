@@ -3,65 +3,59 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Gantt — мониторинг задач</title>
+    <title>График заседаний — диаграмма</title>
 
-    <!-- Frappe Gantt UMD (даёт глобальный window.Gantt) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css" />
-
-    <!-- локальные стили -->
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<header class="app-header">
-    <h1>Диаграмма Ганта</h1>
-    <p class="subtitle">Диапазон: сентябрь 2025 — декабрь 2026</p>
+<header class="header">
+    <h1>График заседаний акционера</h1>
+    <p class="subtitle">Период: сентябрь 2025 — декабрь 2026 (масштаб: день)</p>
 </header>
 
-<section class="controls">
-    <form id="taskForm" autocomplete="off" novalidate>
+<!-- Форма над диаграммой -->
+<section class="topbar">
+    <form id="meetingForm" autocomplete="off" novalidate class="topform">
         <div class="field">
-            <label>Название</label>
-            <input type="text" name="name" placeholder="Новая задача" required />
+            <label for="groupSelect">Группа компаний</label>
+            <select id="groupSelect" name="group" required></select>
         </div>
 
         <div class="field">
-            <label>Начало</label>
-            <input type="date" name="start" required />
+            <label for="typeSelect">Тип заседания</label>
+            <select id="typeSelect" name="type" required>
+                <option value="О">Очередное (О)</option>
+                <option value="В">Внеочередное (В)</option>
+            </select>
         </div>
 
         <div class="field">
-            <label>Окончание (опционально)</label>
-            <input type="date" name="end" />
-        </div>
-
-        <div class="field">
-            <label>Цвет бара</label>
-            <input type="color" name="barColor" value="#4e79a7" />
-        </div>
-
-        <div class="field">
-            <label>Цвет текста</label>
-            <input type="color" name="textColor" value="#ffffff" />
+            <label for="dateInput">Дата заседания</label>
+            <input id="dateInput" name="date" type="date" required />
         </div>
 
         <div class="field actions">
-            <button type="submit">Добавить</button>
-        </div>
-
-        <div class="field zoom">
-            <button id="zoomOut" type="button">−</button>
-            <span id="zoomLabel">Week</span>
-            <button id="zoomIn" type="button">+</button>
+            <button type="submit">Добавить заседание</button>
+            <button id="clearStorage" type="button" class="muted">Сбросить все</button>
         </div>
     </form>
 </section>
 
-<section class="chart-wrap">
-    <div id="gantt"></div>
-</section>
+<main class="timeline-area">
+    <!-- header: months row + days row (скролл синхронизируется с grid) -->
+    <div class="timeline-header" id="timelineHeader">
+        <div id="monthsRow" class="months-row"></div>
+        <div id="daysRow" class="days-row"></div>
+    </div>
 
-<!-- библиотека (UMD) должна идти перед script.js -->
-<script src="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js"></script>
+    <div class="timeline-body">
+        <div class="timeline-grid" id="timelineGrid"></div>
+        <div class="groups-column" id="groupsColumn"></div>
+    </div>
+</main>
+
+<footer class="footer">Данные сохраняются в localStorage (<code>meetings_v1</code>).</footer>
+
 <script src="script.js"></script>
 </body>
 </html>

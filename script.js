@@ -1,202 +1,271 @@
-/* global Gantt */
-
-// --- Утилиты
-function ensureStyleTag() {
-    const ID = 'dynamic-task-colors';
-    let tag = document.getElementById(ID);
-    if (!tag) {
-        tag = document.createElement('style');
-        tag.id = ID;
-        document.head.appendChild(tag);
-    }
-    return tag;
-}
-function addOrReplaceColorRule(className, barColor, textColor) {
-    const tag = ensureStyleTag();
-    const css = `
-/* dynamic: ${className} */
-.bar-wrapper.${className} rect.bar, .bar-wrapper.${className} .bar { fill: ${barColor} !important; }
-.bar-wrapper.${className} .bar-label { fill: ${textColor} !important; }
-`;
-    // Простая замена: если блок с комментарием dynamic: <className> найден — заменим, иначе добавим
-    const marker = `/* dynamic: ${className} */`;
-    if (tag.textContent.includes(marker)) {
-        // заменим блок целиком (находим начало маркера и следующий перенос строки)
-        const idx = tag.textContent.indexOf(marker);
-        // ищем следующий маркер или конец строки — достаточно удалить от idx до следующего "/* dynamic:" или конца
-        const nextMarkerIdx = tag.textContent.indexOf('/* dynamic:', idx + 1);
-        if (nextMarkerIdx === -1) {
-            tag.textContent = tag.textContent.slice(0, idx) + css;
-        } else {
-            tag.textContent = tag.textContent.slice(0, idx) + css + tag.textContent.slice(nextMarkerIdx);
-        }
-    } else {
-        tag.appendChild(document.createTextNode(css));
-    }
-}
-
-// --- localStorage
-const STORAGE_KEY = 'gantt_tasks_v1';
-function saveTasksToStorage(tasksArray) {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasksArray));
-    } catch (e) {
-        console.warn('Не удалось сохранить задачи в localStorage', e);
-    }
-}
-function loadTasksFromStorage() {
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) return null;
-        return parsed;
-    } catch (e) {
-        console.warn('Ошибка при чтении localStorage', e);
-        return null;
-    }
-}
-
-// --- Начальные задачи (включая "якоря" для диапазона)
-const tasks = [
-    { id: 'anchor-start', name: 'anchor-start', start: '2025-09-01', end: '2025-09-01', custom_class: 'anchor' },
-    { id: 'anchor-end',   name: 'anchor-end',   start: '2026-12-31', end: '2026-12-31', custom_class: 'anchor' },
-
-    { id: 't1', name: 'Проект: инициация', start: '2025-09-10', end: '2025-09-20', custom_class: 'color-blue' },
-    { id: 't2', name: 'Этап: дизайн', start: '2025-10-01', end: '2025-11-05', custom_class: 'color-green' },
-    { id: 't3', name: 'Этап: разработка', start: '2025-11-10', end: '2026-02-15', custom_class: 'color-rose' }
+// meetings_v1 saved as array of { id, groupIndex, date: 'YYYY-MM-DD', type: 'О'|'В' }
+// Groups list (order important)
+const GROUPS = [
+    "Животноводство и корма",
+    "Хлебобулочные изделия",
+    "Мясопереработка",
+    "Алкогольная продукция",
+    "Переработка зерновых",
+    "Трейдинг зерновых",
+    "Агроматериалы",
+    "Управляющая компания",
+    "Ревизионная комиссия",
+    "Ролиф",
+    "Deep Core"
 ];
 
-let gantt = null;
-const VIEW_MODES = ['Year','Month','Week','Day'];
-let currentViewIndex = 2; // start with 'Week'
+// Period: 2025-09-01 .. 2026-12-31 (inclusive)
+const START_DATE = new Date(2025, 8, 1);
+const END_DATE = new Date(2026, 11, 31);
 
-// --- Рендер (очищает контейнер и создаёт новый Gantt)
-function render() {
-    const container = document.querySelector('#gantt');
-    if (!container) return;
-    container.innerHTML = ''; // **важно** — удаляем старый SVG/DOM перед перерисовкой
+const STORAGE_KEY = 'meetings_v1';
+const DAY_MS = 24*60*60*1000;
+const DAY_WIDTH_PX = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--day-width')) || 28;
+const BAR_WIDTH_PX = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bar-width')) || 20;
 
-    const options = {
-        view_mode: VIEW_MODES[currentViewIndex],
-        date_format: 'YYYY-MM-DD',
-        bar_height: 28,
-        padding: 10,
-        column_width: 30,
-        container_height: 720,
-        view_mode_select: false,
-        popup_on: 'click',
-        auto_move_label: true
-    };
-
-    gantt = new Gantt('#gantt', tasks, options);
+function dateToISO(d) {
+    if (typeof d === 'string') return d;
+    const mm = String(d.getMonth() + 1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${d.getFullYear()}-${mm}-${dd}`;
+}
+function isoToDate(iso) {
+    const [y,m,d] = iso.split('-').map(Number);
+    return new Date(y, m-1, d);
+}
+function daysBetween(start, end) {
+    return Math.round((end - start) / DAY_MS);
 }
 
-// --- При загрузке страницы: пытаемся восстановить задачи
-function ensureAnchorsPresent() {
-    if (!tasks.some(t => t.id === 'anchor-start')) {
-        tasks.unshift({ id: 'anchor-start', name: 'anchor-start', start: '2025-09-01', end: '2025-09-01', custom_class: 'anchor' });
-    }
-    if (!tasks.some(t => t.id === 'anchor-end')) {
-        tasks.push({ id: 'anchor-end', name: 'anchor-end', start: '2026-12-31', end: '2026-12-31', custom_class: 'anchor' });
-    }
+// generate DAYS
+const TOTAL_DAYS = daysBetween(START_DATE, END_DATE) + 1;
+const DAYS = new Array(TOTAL_DAYS).fill(0).map((_,i) => {
+    const dt = new Date(START_DATE.getTime() + i*DAY_MS);
+    return { date: dt, iso: dateToISO(dt), index: i };
+});
+
+// storage helpers
+function loadMeetings() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed;
+    } catch(e) { console.warn('load error', e); return []; }
+}
+function saveMeetings(arr) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); } catch(e) { console.warn('save error', e); }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-    // Попытка загрузить из localStorage
-    const stored = loadTasksFromStorage();
-    if (stored && Array.isArray(stored) && stored.length > 0) {
-        // Заменяем содержимое tasks на сохранённый массив (мутируем существующий массив)
-        tasks.splice(0, tasks.length, ...stored);
-        // Гарантируем наличие якорей диапазона
-        ensureAnchorsPresent();
+function clampDateToRange(iso) {
+    const d = isoToDate(iso);
+    if (d < START_DATE) return dateToISO(START_DATE);
+    if (d > END_DATE) return dateToISO(END_DATE);
+    return iso;
+}
+function isDateInRange(iso) {
+    const d = isoToDate(iso);
+    return d >= START_DATE && d <= END_DATE;
+}
 
-        // Восстанавливаем CSS-правила для задач, где есть сохранённые цвета
-        tasks.forEach(t => {
-            if (t.custom_class && t.barColor && t.textColor) {
-                addOrReplaceColorRule(t.custom_class, t.barColor, t.textColor);
-            }
-        });
-    } else {
-        // Нет сохранений — сохраняем исходный набор
-        saveTasksToStorage(tasks);
-    }
+// DOM refs
+const groupSelect = document.getElementById('groupSelect');
+const typeSelect = document.getElementById('typeSelect');
+const dateInput = document.getElementById('dateInput');
+const meetingForm = document.getElementById('meetingForm');
+const timelineHeader = document.getElementById('timelineHeader');
+const monthsRow = document.getElementById('monthsRow');
+const daysRow = document.getElementById('daysRow');
+const timelineGrid = document.getElementById('timelineGrid');
+const groupsColumn = document.getElementById('groupsColumn');
+const clearBtn = document.getElementById('clearStorage');
 
-    // Первый рендер
-    render();
-    document.getElementById('zoomLabel').textContent = VIEW_MODES[currentViewIndex];
+// fill group select
+GROUPS.forEach((g,i) => {
+    const opt = document.createElement('option');
+    opt.value = i; opt.textContent = g;
+    groupSelect.appendChild(opt);
+});
 
-    // Форма добавления задач
-    const form = document.getElementById('taskForm');
-    form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const fd = new FormData(form);
-        const name = (fd.get('name') || '').toString().trim();
-        const startRaw = fd.get('start');
-        let endRaw = fd.get('end');
-        const barColor = (fd.get('barColor') || '#4e79a7').toString();
-        const textColor = (fd.get('textColor') || '#ffffff').toString();
+// date input constraints
+dateInput.min = dateToISO(START_DATE);
+dateInput.max = dateToISO(END_DATE);
+dateInput.value = dateToISO(START_DATE);
 
-        if (!name || !startRaw) return alert('Укажите название и дату начала');
+// RENDER HEADER (months + days)
+function renderHeader() {
+    monthsRow.innerHTML = '';
+    daysRow.innerHTML = '';
 
-        if (!endRaw || !endRaw.toString().trim()) endRaw = startRaw;
-
-        const id = 't_' + Date.now();
-        const cls = 'c_' + id.replace(/[^a-zA-Z0-9_-]/g, '');
-
-        // создаём CSS правило (и сохраняем цвета в объект задачи)
-        addOrReplaceColorRule(cls, barColor, textColor);
-
-        const newTask = {
-            id,
-            name,
-            start: ('' + startRaw),
-            end: ('' + endRaw),
-            custom_class: cls,
-            barColor,    // сохраняем цвет, чтобы восстановить при загрузке
-            textColor    // сохраняем цвет текста
-        };
-
-        tasks.push(newTask);
-
-        // Сохраняем в localStorage сразу после добавления
-        saveTasksToStorage(tasks);
-
-        // Перерисуем (контейнер очищается внутри render)
-        render();
-
-        form.reset();
-    });
-
-    // Zoom in/out
-    const zoomIn = document.getElementById('zoomIn');
-    const zoomOut = document.getElementById('zoomOut');
-    const zoomLabel = document.getElementById('zoomLabel');
-
-    zoomIn.addEventListener('click', () => {
-        if (currentViewIndex > 0) currentViewIndex--;
-        zoomLabel.textContent = VIEW_MODES[currentViewIndex];
-        if (gantt && gantt.change_view_mode) gantt.change_view_mode(VIEW_MODES[currentViewIndex], true);
-        else render();
-    });
-
-    zoomOut.addEventListener('click', () => {
-        if (currentViewIndex < VIEW_MODES.length - 1) currentViewIndex++;
-        zoomLabel.textContent = VIEW_MODES[currentViewIndex];
-        if (gantt && gantt.change_view_mode) gantt.change_view_mode(VIEW_MODES[currentViewIndex], true);
-        else render();
-    });
-
-    // Клик по задаче — (пока не изменяем логику, но можно будет дополнять)
-    document.querySelector('#gantt').addEventListener('click', (ev) => {
-        const target = ev.target;
-        const wrapper = target.closest && target.closest('.bar-wrapper');
-        if (wrapper && wrapper.dataset && wrapper.dataset.taskId) {
-            const tid = wrapper.dataset.taskId;
-            const task = tasks.find(t => t.id === tid);
-            if (task) {
-                // заглушка — ничего не делаем, оставляем поведение как было
-            }
+    // Months: group days by year-month
+    let i = 0;
+    while (i < DAYS.length) {
+        const d = DAYS[i].date;
+        const year = d.getFullYear(), month = d.getMonth();
+        // count days in this month within our range
+        let count = 0;
+        while (i + count < DAYS.length) {
+            const dd = DAYS[i+count].date;
+            if (dd.getFullYear() === year && dd.getMonth() === month) count++;
+            else break;
         }
+        const label = new Date(year, month, 1).toLocaleString('ru', { month: 'long', year: 'numeric' });
+        const block = document.createElement('div');
+        block.className = 'month-block';
+        block.style.width = (count * DAY_WIDTH_PX) + 'px';
+        block.textContent = label;
+        monthsRow.appendChild(block);
+        i += count;
+    }
+
+    // Days row: each day a cell with day number
+    for (let k=0;k<DAYS.length;k++) {
+        const dObj = DAYS[k];
+        const cell = document.createElement('div');
+        cell.className = 'day-cell-header';
+        cell.style.width = DAY_WIDTH_PX + 'px';
+        cell.style.minWidth = DAY_WIDTH_PX + 'px';
+        cell.textContent = dObj.date.getDate();
+        // highlight first of month with bolder text
+        if (dObj.date.getDate() === 1) {
+            cell.style.fontWeight = 700;
+            cell.style.color = '#0f172a';
+        }
+        daysRow.appendChild(cell);
+    }
+}
+
+// RENDER GRID and groups
+function renderGrid(meetings) {
+    timelineGrid.innerHTML = '';
+    groupsColumn.innerHTML = '';
+
+    const gridInner = document.createElement('div');
+    gridInner.className = 'grid-inner';
+
+    // for each group create a row with inner width = DAYS.length * DAY_WIDTH
+    GROUPS.forEach((name, gi) => {
+        const row = document.createElement('div');
+        row.className = 'group-row';
+        row.dataset.groupIndex = gi;
+
+        const rowInner = document.createElement('div');
+        rowInner.className = 'row-inner';
+        rowInner.style.width = (DAYS.length * DAY_WIDTH_PX) + 'px';
+        rowInner.style.height = '100%';
+        rowInner.style.position = 'relative';
+        row.appendChild(rowInner);
+        gridInner.appendChild(row);
+
+        const gLabel = document.createElement('div');
+        gLabel.className = 'group-label';
+        gLabel.textContent = name;
+        groupsColumn.appendChild(gLabel);
     });
+
+    timelineGrid.appendChild(gridInner);
+
+    // add meetings
+    meetings.forEach(m => {
+        const { id, groupIndex, date, type } = m;
+        const gidx = Number(groupIndex);
+        if (!Number.isInteger(gidx) || gidx < 0 || gidx >= GROUPS.length) return;
+        if (!isDateInRange(date)) return;
+
+        const dayObj = DAYS.find(d => d.iso === date);
+        if (!dayObj) return;
+        const idx = dayObj.index;
+
+        const row = timelineGrid.querySelector(`.group-row[data-group-index="${gidx}"]`);
+        if (!row) return;
+        const rowInner = row.firstElementChild;
+
+        const bar = document.createElement('div');
+        bar.className = 'meeting-bar ' + (type === 'В' ? 'meeting-V' : 'meeting-O');
+        bar.dataset.id = id;
+        bar.textContent = (type === 'В' ? 'В' : 'О');
+
+        const left = idx * DAY_WIDTH_PX + Math.max(0, Math.floor((DAY_WIDTH_PX - BAR_WIDTH_PX) / 2));
+        bar.style.left = left + 'px';
+
+        rowInner.appendChild(bar);
+    });
+}
+
+// load meetings and validate
+let meetings = loadMeetings();
+if (!Array.isArray(meetings)) meetings = [];
+meetings = meetings.filter(m => {
+    const okGroup = Number.isInteger(Number(m.groupIndex)) && m.groupIndex >= 0 && m.groupIndex < GROUPS.length;
+    const okDate = typeof m.date === 'string' && isDateInRange(m.date);
+    const okType = m.type === 'О' || m.type === 'В';
+    return okGroup && okDate && okType;
+});
+
+// initial render
+renderHeader();
+renderGrid(meetings);
+
+// Sync scrolling: when grid scrolls horizontally, header scrolls; vertical maps to groups column
+timelineGrid.addEventListener('scroll', () => {
+    timelineHeader.scrollLeft = timelineGrid.scrollLeft;
+    groupsColumn.scrollTop = timelineGrid.scrollTop;
+});
+// allow header scroll to drive grid
+timelineHeader.addEventListener('scroll', () => {
+    timelineGrid.scrollLeft = timelineHeader.scrollLeft;
+});
+// vertical sync back (if user scrolls groups list)
+groupsColumn.addEventListener('scroll', () => {
+    timelineGrid.scrollTop = groupsColumn.scrollTop;
+});
+
+// form submit
+meetingForm.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const groupIndex = Number(groupSelect.value);
+    const type = typeSelect.value === 'В' ? 'В' : 'О';
+    const date = dateInput.value;
+    if (!isDateInRange(date)) {
+        alert(`Дата должна быть в диапазоне ${dateToISO(START_DATE)} — ${dateToISO(END_DATE)}`);
+        return;
+    }
+    const id = 'm_' + Date.now();
+    const newMeeting = { id, groupIndex, date, type };
+    meetings.push(newMeeting);
+    saveMeetings(meetings);
+    renderGrid(meetings);
+    scrollToMeeting(newMeeting);
+    // keep date as next day (optional) — reset to START_DATE for predictability
+    dateInput.value = dateToISO(START_DATE);
+});
+
+// clear storage
+clearBtn.addEventListener('click', () => {
+    if (!confirm('Удалить все сохранённые заседания?')) return;
+    meetings = [];
+    saveMeetings(meetings);
+    renderGrid(meetings);
+});
+
+// scroll helper
+function scrollToMeeting(meeting) {
+    const dayObj = DAYS.find(d => d.iso === meeting.date);
+    if (!dayObj) return;
+    const left = dayObj.index * DAY_WIDTH_PX;
+    // scroll horizontally so day is visible (offset a bit left)
+    timelineGrid.scrollLeft = Math.max(0, left - 80);
+    timelineHeader.scrollLeft = timelineGrid.scrollLeft;
+    // vertical: compute top by group index * row height
+    const rowH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--row-height')) || 56;
+    const top = meeting.groupIndex * rowH;
+    groupsColumn.scrollTop = top;
+    timelineGrid.scrollTop = top;
+}
+
+// keep header aligned on resize (re-render header widths)
+window.addEventListener('resize', () => {
+    renderHeader();
+    renderGrid(meetings);
 });
