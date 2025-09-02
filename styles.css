@@ -1,0 +1,79 @@
+:root{
+    --bg:#071021;
+    --muted:#9aa8b8;
+}
+
+*{box-sizing:border-box}
+body{
+    margin:0;
+    font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+    background:linear-gradient(180deg,#051027, #071021 60%);
+    color:#e6eef6;
+}
+
+.app-header{padding:20px 24px}
+h1{margin:0;font-size:24px}
+.subtitle{margin:4px 0 0;color:var(--muted);font-size:13px}
+
+.controls{
+    padding:12px 20px;
+    border-top:1px solid rgba(255,255,255,0.03);
+    border-bottom:1px solid rgba(255,255,255,0.02);
+}
+#taskForm{
+    display:grid;
+    grid-template-columns: repeat(5, minmax(160px,1fr)) auto;
+    gap:10px;
+    align-items:end;
+}
+.field{display:flex;flex-direction:column;gap:6px}
+label{font-size:12px;color:var(--muted)}
+input[type="text"], input[type="date"]{
+    padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);
+    background:#071426;color:#eaf2ff;
+}
+input[type="color"]{width:48px;height:36px;padding:0;border-radius:8px;border:1px solid rgba(255,255,255,0.04)}
+button{padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:#eaf2ff;cursor:pointer}
+button:active{transform:translateY(1px)}
+.actions button{min-width:80px}
+
+/* zoom control */
+.zoom{display:flex;gap:8px;align-items:center}
+#zoomLabel{font-weight:600;color:var(--muted)}
+
+/* контейнер диаграммы */
+.chart-wrap{padding:12px 12px 28px;overflow:auto}
+#gantt{
+    min-height:720px;           /* увеличил высоту контейнера по твоему запросу */
+    border-radius:12px;
+    padding:8px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+    border:1px solid rgba(255,255,255,0.02);
+}
+
+/* Подстройка внешнего вида баров/меток */
+.bar-label{
+    font-weight:600;
+    font-size:12px;     /* чуть меньше, чтоб помещалось */
+    pointer-events:none;
+}
+
+/* Более специфичные селекторы для пользовательских классов (приоритет + !important) */
+/* Пример: .bar-wrapper.c_t_... rect.bar { fill: #... !important; } */
+
+/* Цвета по дефолту (демо) */
+.bar-wrapper.color-blue rect.bar, .bar-wrapper.color-blue .bar { fill:#4e79a7 !important; }
+.bar-wrapper.color-blue .bar-label { fill:#ffffff !important; }
+
+.bar-wrapper.color-green rect.bar, .bar-wrapper.color-green .bar { fill:#59a14f !important; }
+.bar-wrapper.color-green .bar-label { fill:#061012 !important; }
+
+.bar-wrapper.color-rose rect.bar, .bar-wrapper.color-rose .bar { fill:#e15759 !important; }
+.bar-wrapper.color-rose .bar-label { fill:#ffffff !important; }
+
+/* Скрыть якорные элементы (шкала) */
+.bar-wrapper.anchor rect.bar, .bar-wrapper.anchor .bar-label { opacity:0 !important; }
+
+/* Мелкие правки сетки (чтобы выглядело аккуратно на тёмном фоне) */
+.grid .grid-line { stroke: rgba(255,255,255,0.02); }
+.header { color: var(--muted) }
