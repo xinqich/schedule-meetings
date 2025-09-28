@@ -23,6 +23,50 @@ const DAY_MS = 24*60*60*1000;
 const DAY_WIDTH_PX = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--day-width')) || 28;
 const BAR_WIDTH_PX = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bar-width')) || 20;
 
+// Firebase configuration - you need to replace this with your actual Firebase config
+const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyBA54A85RET3qp58uxzJjSBzf9YNDcmMrY",
+    authDomain: "gantt-diagramm.firebaseapp.com",
+    projectId: "gantt-diagramm",
+    storageBucket: "gantt-diagramm.firebasestorage.app",
+    messagingSenderId: "669157571776",
+    appId: "1:669157571776:web:19a850e02123be2c0d0125"
+};
+
+// Firebase variables
+let firebaseApp = null;
+let firestore = null;
+let firebaseEnabled = false;
+const FIREBASE_DOC_ID = 'schedule-meetings-data';
+
+// Initialize Firebase when modules are ready
+function initFirebase() {
+    if (!window.firebaseModules) return;
+    
+    try {
+        const { initializeApp, getFirestore } = window.firebaseModules;
+        firebaseApp = initializeApp(FIREBASE_CONFIG);
+        firestore = getFirestore(firebaseApp);
+        firebaseEnabled = true;
+        updateFirebaseStatus('✅ Подключено к Firebase');
+        
+        // Load data from Firebase on initialization
+        loadFromFirebase();
+    } catch (error) {
+        console.warn('Firebase initialization failed:', error);
+        updateFirebaseStatus('❌ Firebase недоступен');
+        firebaseEnabled = false;
+    }
+}
+
+// Update Firebase status in UI
+function updateFirebaseStatus(status) {
+    const statusEl = document.getElementById('firebaseStatus');
+    if (statusEl) {
+        statusEl.textContent = status;
+    }
+}
+
 function dateToISO(d) {
     if (typeof d === 'string') return d;
     const mm = String(d.getMonth() + 1).padStart(2,'0');
@@ -44,7 +88,61 @@ const DAYS = new Array(TOTAL_DAYS).fill(0).map((_,i) => {
     return { date: dt, iso: dateToISO(dt), index: i };
 });
 
-// storage helpers
+// Firebase storage helpers
+async function saveToFirebase(meetings) {
+    if (!firebaseEnabled || !firestore || !window.firebaseModules) return;
+    
+    try {
+        const { doc, setDoc } = window.firebaseModules;
+        const docRef = doc(firestore, 'meetings', FIREBASE_DOC_ID);
+        await setDoc(docRef, {
+            meetings: meetings,
+            lastUpdated: new Date().toISOString()
+        });
+        updateFirebaseStatus('✅ Сохранено в Firebase');
+    } catch (error) {
+        console.warn('Firebase save error:', error);
+        updateFirebaseStatus('⚠️ Ошибка сохранения');
+    }
+}
+
+async function loadFromFirebase() {
+    if (!firebaseEnabled || !firestore || !window.firebaseModules) return null;
+    
+    try {
+        const { doc, getDoc } = window.firebaseModules;
+        const docRef = doc(firestore, 'meetings', FIREBASE_DOC_ID);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const firebaseMeetings = validateMeetings(data.meetings || []);
+            
+            // Update the global meetings variable and re-render
+            meetings = firebaseMeetings;
+            renderGrid(meetings);
+            
+            // Also save to localStorage as backup
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(firebaseMeetings));
+            } catch(e) {
+                console.warn('localStorage backup failed:', e);
+            }
+            
+            updateFirebaseStatus('✅ Загружено из Firebase');
+            return firebaseMeetings;
+        } else {
+            updateFirebaseStatus('📄 Новый документ');
+            return null;
+        }
+    } catch (error) {
+        console.warn('Firebase load error:', error);
+        updateFirebaseStatus('⚠️ Ошибка загрузки');
+        return null;
+    }
+}
+
+// storage helpers - now with Firebase integration
 function loadMeetings() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -54,8 +152,15 @@ function loadMeetings() {
         return parsed;
     } catch(e) { console.warn('load error', e); return []; }
 }
+
 function saveMeetings(arr) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); } catch(e) { console.warn('save error', e); }
+    try { 
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); 
+        // Also save to Firebase asynchronously
+        if (firebaseEnabled) {
+            saveToFirebase(arr);
+        }
+    } catch(e) { console.warn('save error', e); }
 }
 
 function clampDateToRange(iso) {
@@ -243,14 +348,21 @@ function renderGrid(meetings) {
 }
 
 // load meetings and validate
-let meetings = loadMeetings();
-if (!Array.isArray(meetings)) meetings = [];
-meetings = meetings.filter(m => {
-    const okGroup = Number.isInteger(Number(m.groupIndex)) && m.groupIndex >= 0 && m.groupIndex < GROUPS.length;
-    const okDate = typeof m.date === 'string' && isDateInRange(m.date);
-    const okType = m.type === 'О' || m.type === 'В';
-    return okGroup && okDate && okType;
-});
+let meetings = [];
+
+// Function to validate and filter meetings
+function validateMeetings(meetingsArray) {
+    if (!Array.isArray(meetingsArray)) return [];
+    return meetingsArray.filter(m => {
+        const okGroup = Number.isInteger(Number(m.groupIndex)) && m.groupIndex >= 0 && m.groupIndex < GROUPS.length;
+        const okDate = typeof m.date === 'string' && isDateInRange(m.date);
+        const okType = m.type === 'О' || m.type === 'В';
+        return okGroup && okDate && okType;
+    });
+}
+
+// Load initial data (will be replaced by Firebase data when available)
+meetings = validateMeetings(loadMeetings());
 
 // initial render
 renderHeader();
@@ -413,3 +525,11 @@ window.addEventListener('resize', () => {
     renderHeader();
     renderGrid(meetings);
 });
+
+// Firebase initialization hook
+window.initFirebase = initFirebase;
+
+// Initialize Firebase if modules are already loaded
+if (window.firebaseReady) {
+    initFirebase();
+}

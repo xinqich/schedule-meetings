@@ -84,8 +84,31 @@
   </div>
 </div>
 
-<footer class="footer">Данные сохраняются в localStorage (<code>meetings_v1</code>).</footer>
+<footer class="footer">
+    Данные сохраняются в облаке.
+    <span id="firebaseStatus" class="firebase-status">🔄 Подключение...</span>
+</footer>
 
+<!-- Firebase v9 modular SDK -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+  import { getFirestore, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+  
+  // Make Firebase available globally
+  window.firebaseModules = {
+    initializeApp,
+    getFirestore,
+    doc,
+    setDoc,
+    getDoc
+  };
+  
+  // Signal that Firebase modules are loaded
+  window.firebaseReady = true;
+  if (window.initFirebase) {
+    window.initFirebase();
+  }
+</script>
 <script src="script.js"></script>
 </body>
 </html>
