@@ -270,6 +270,32 @@ groupsColumn.addEventListener('scroll', () => {
     timelineGrid.scrollTop = groupsColumn.scrollTop;
 });
 
+// Mouse wheel to pan timeline: default wheel => horizontal pan; Shift+wheel => vertical pan
+function handleWheelToPan(target) {
+    target.addEventListener('wheel', (e) => {
+        // Use non-passive to allow preventDefault; added in options below
+        if (e.shiftKey) {
+            // Shift => vertical pan between groups
+            e.preventDefault();
+            timelineGrid.scrollTop += e.deltaY;
+            groupsColumn.scrollTop = timelineGrid.scrollTop;
+            return;
+        }
+        const deltaX = e.deltaX || 0;
+        const deltaY = e.deltaY || 0;
+        // If vertical wheel used, translate to horizontal; also include native horizontal deltas
+        const dx = (deltaX !== 0 ? deltaX : deltaY);
+        if (dx !== 0) {
+            e.preventDefault();
+            const newLeft = Math.max(0, timelineGrid.scrollLeft + dx);
+            timelineGrid.scrollLeft = newLeft;
+            timelineHeader.scrollLeft = newLeft;
+        }
+    }, { passive: false });
+}
+handleWheelToPan(timelineGrid);
+handleWheelToPan(timelineHeader);
+
 // form submit
 meetingForm.addEventListener('submit', (ev) => {
     ev.preventDefault();
