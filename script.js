@@ -183,6 +183,30 @@ function renderGrid(meetings) {
         groupsColumn.appendChild(gLabel);
     });
 
+    // add vertical grid lines overlay (one set for all rows)
+    const lines = document.createElement('div');
+    lines.className = 'grid-lines';
+    lines.style.width = (DAYS.length * DAY_WIDTH_PX) + 'px';
+    for (let k = 0; k <= DAYS.length; k++) {
+        const v = document.createElement('div');
+        v.className = 'vline';
+        // Thicker line at the start of each month (except the last boundary)
+        if (k < DAYS.length && DAYS[k].date.getDate() === 1) {
+            v.classList.add('month-start');
+        }
+        v.style.left = (k * DAY_WIDTH_PX) + 'px';
+        lines.appendChild(v);
+    }
+    // horizontal separators between group rows (skip top and bottom outer borders)
+    const rowH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--row-height')) || 56;
+    for (let gi = 1; gi < GROUPS.length; gi++) {
+        const h = document.createElement('div');
+        h.className = 'hline';
+        h.style.top = (gi * rowH) + 'px';
+        lines.appendChild(h);
+    }
+    gridInner.appendChild(lines);
+
     timelineGrid.appendChild(gridInner);
 
     // add meetings
