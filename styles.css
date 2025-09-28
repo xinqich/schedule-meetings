@@ -111,8 +111,8 @@ button.muted {
     border: 1px solid var(--border);
     padding: 6px;
     margin-bottom: 8px;
-    position: relative;
-    left: 308px;
+    margin-left: 308px;
+    width: calc(100% - 308px);
 }
 
 /* month and days rows */
