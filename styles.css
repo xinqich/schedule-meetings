@@ -212,10 +212,8 @@ button.muted {
 .group-row {
     height: var(--row-height);
     min-height: var(--row-height);
-    border-bottom: none; /* moved to overlay for consistent rendering */
     position: relative;
     background: linear-gradient(180deg, #fff, #fbfdff);
-    margin-bottom: 2px;
 }
 /* subtle vertical separators via background on row inner */
 .row-inner {
