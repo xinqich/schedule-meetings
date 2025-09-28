@@ -55,6 +55,35 @@
     </div>
 </main>
 
+<!-- Edit modal overlay -->
+<div id="editModal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+    <h2 id="editTitle">Редактирование заседания</h2>
+    <form id="editForm" class="topform" autocomplete="off" novalidate>
+      <div class="field">
+        <label for="editGroupSelect">Группа компаний</label>
+        <select id="editGroupSelect" name="group" required></select>
+      </div>
+      <div class="field">
+        <label for="editTypeSelect">Тип заседания</label>
+        <select id="editTypeSelect" name="type" required>
+          <option value="О">Очередное (О)</option>
+          <option value="В">Внеочередное (В)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="editDateInput">Дата заседания</label>
+        <input id="editDateInput" name="date" type="date" required />
+      </div>
+      <div class="field actions">
+        <button type="submit">Сохранить</button>
+        <button id="editDelete" type="button" class="muted">Удалить</button>
+        <button id="editCancel" type="button" class="muted">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <footer class="footer">Данные сохраняются в localStorage (<code>meetings_v1</code>).</footer>
 
 <script src="script.js"></script>

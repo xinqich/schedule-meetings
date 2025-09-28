@@ -81,17 +81,36 @@ const timelineGrid = document.getElementById('timelineGrid');
 const groupsColumn = document.getElementById('groupsColumn');
 const clearBtn = document.getElementById('clearStorage');
 
-// fill group select
+// Edit modal refs
+const editModal = document.getElementById('editModal');
+const editForm = document.getElementById('editForm');
+const editGroupSelect = document.getElementById('editGroupSelect');
+const editTypeSelect = document.getElementById('editTypeSelect');
+const editDateInput = document.getElementById('editDateInput');
+const editDeleteBtn = document.getElementById('editDelete');
+const editCancelBtn = document.getElementById('editCancel');
+let editingMeetingId = null;
+
+// fill group selects
 GROUPS.forEach((g,i) => {
-    const opt = document.createElement('option');
-    opt.value = i; opt.textContent = g;
-    groupSelect.appendChild(opt);
+    const opt1 = document.createElement('option');
+    opt1.value = i; opt1.textContent = g;
+    groupSelect.appendChild(opt1);
+    if (editGroupSelect) {
+        const opt2 = document.createElement('option');
+        opt2.value = i; opt2.textContent = g;
+        editGroupSelect.appendChild(opt2);
+    }
 });
 
 // date input constraints
 dateInput.min = dateToISO(START_DATE);
 dateInput.max = dateToISO(END_DATE);
 dateInput.value = dateToISO(START_DATE);
+if (editDateInput) {
+    editDateInput.min = dateToISO(START_DATE);
+    editDateInput.max = dateToISO(END_DATE);
+}
 
 // RENDER HEADER (months + days)
 function renderHeader() {
@@ -189,6 +208,12 @@ function renderGrid(meetings) {
         const left = idx * DAY_WIDTH_PX + Math.max(0, Math.floor((DAY_WIDTH_PX - BAR_WIDTH_PX) / 2));
         bar.style.left = left + 'px';
 
+        // Open edit modal on click
+        bar.addEventListener('click', () => {
+            const meet = meetings.find(mm => mm.id === id);
+            if (meet) openEditModal(meet);
+        });
+
         rowInner.appendChild(bar);
     });
 }
@@ -263,6 +288,75 @@ function scrollToMeeting(meeting) {
     groupsColumn.scrollTop = top;
     timelineGrid.scrollTop = top;
 }
+
+// Edit modal logic
+function openEditModal(meeting) {
+    editingMeetingId = meeting.id;
+    if (!editModal) return;
+    if (editGroupSelect) editGroupSelect.value = String(meeting.groupIndex);
+    if (editTypeSelect) editTypeSelect.value = meeting.type;
+    if (editDateInput) editDateInput.value = meeting.date;
+    editModal.classList.remove('hidden');
+    setTimeout(() => { if (editDateInput) editDateInput.focus(); }, 0);
+}
+function closeEditModal() {
+    editingMeetingId = null;
+    if (editModal) editModal.classList.add('hidden');
+}
+
+if (editForm) {
+    editForm.addEventListener('submit', (ev) => {
+        ev.preventDefault();
+        if (!editingMeetingId) { closeEditModal(); return; }
+        const idx = meetings.findIndex(m => m.id === editingMeetingId);
+        if (idx === -1) { closeEditModal(); return; }
+
+        const newGroupIndex = Number(editGroupSelect.value);
+        const newType = editTypeSelect.value === 'В' ? 'В' : 'О';
+        const newDate = editDateInput.value;
+
+        if (!Number.isInteger(newGroupIndex) || newGroupIndex < 0 || newGroupIndex >= GROUPS.length) {
+            alert('Некорректная группа');
+            return;
+        }
+        if (!isDateInRange(newDate)) {
+            alert(`Дата должна быть в диапазоне ${dateToISO(START_DATE)} — ${dateToISO(END_DATE)}`);
+            return;
+        }
+
+        meetings[idx] = { ...meetings[idx], groupIndex: newGroupIndex, type: newType, date: newDate };
+        saveMeetings(meetings);
+        renderGrid(meetings);
+        const updated = meetings[idx];
+        closeEditModal();
+        scrollToMeeting(updated);
+    });
+}
+if (editDeleteBtn) {
+    editDeleteBtn.addEventListener('click', () => {
+        if (!editingMeetingId) { closeEditModal(); return; }
+        if (!confirm('Удалить это заседание?')) return;
+        meetings = meetings.filter(m => m.id !== editingMeetingId);
+        saveMeetings(meetings);
+        renderGrid(meetings);
+        closeEditModal();
+    });
+}
+if (editCancelBtn) {
+    editCancelBtn.addEventListener('click', () => {
+        closeEditModal();
+    });
+}
+if (editModal) {
+    editModal.addEventListener('click', (e) => {
+        if (e.target === editModal) closeEditModal();
+    });
+}
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && editModal && !editModal.classList.contains('hidden')) {
+        closeEditModal();
+    }
+});
 
 // keep header aligned on resize (re-render header widths)
 window.addEventListener('resize', () => {
