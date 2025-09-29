@@ -444,11 +444,6 @@ function scrollToMeeting(meeting) {
     // scroll horizontally so day is visible (offset a bit left)
     timelineGrid.scrollLeft = Math.max(0, left - 80);
     timelineHeader.scrollLeft = timelineGrid.scrollLeft;
-    // vertical: compute top by group index * row height
-    const rowH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--row-height')) || 56;
-    const top = meeting.groupIndex * rowH;
-    groupsColumn.scrollTop = top;
-    timelineGrid.scrollTop = top;
 }
 
 // Edit modal logic
