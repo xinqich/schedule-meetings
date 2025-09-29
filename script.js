@@ -1,18 +1,19 @@
 // meetings_v1 saved as array of { id, groupIndex, date: 'YYYY-MM-DD', type: 'О'|'В' }
 // Groups list (order important)
-const GROUPS = [
-    "Животноводство и корма",
-    "Хлебобулочные изделия",
-    "Мясопереработка",
-    "Алкогольная продукция",
-    "Переработка зерновых",
-    "Трейдинг зерновых",
-    "Агроматериалы",
-    "Управляющая компания",
-    "Ревизионная комиссия",
-    "Ролиф",
-    "Deep Core"
-];
+const GROUPS = {
+    "Животноводство и корма": '#008000',
+    "Хлебобулочные изделия": '#d9af70',
+    "Мясопереработка": '#9f191b',
+    "Алкогольная продукция": '#7cb1c3',
+    "Переработка зерновых": '#ef9b02',
+    "Трейдинг зерновых": '#b503b5',
+    "Агроматериалы": '#808080',
+    "Управляющая компания": '#5e92f1',
+    "Ревизионная комиссия": '#5700ff',
+    "Ролиф": '#ff5a00',
+    "Deep Core": '#333'
+};
+
 
 // Period: 2025-09-01 .. 2026-12-31 (inclusive)
 const START_DATE = new Date(2025, 8, 1);
@@ -197,13 +198,13 @@ const editCancelBtn = document.getElementById('editCancel');
 let editingMeetingId = null;
 
 // fill group selects
-GROUPS.forEach((g,i) => {
+Object.keys(GROUPS).forEach((group,i) => {
     const opt1 = document.createElement('option');
-    opt1.value = i; opt1.textContent = g;
+    opt1.value = i; opt1.textContent = group;
     groupSelect.appendChild(opt1);
     if (editGroupSelect) {
         const opt2 = document.createElement('option');
-        opt2.value = i; opt2.textContent = g;
+        opt2.value = i; opt2.textContent = group;
         editGroupSelect.appendChild(opt2);
     }
 });
@@ -269,7 +270,8 @@ function renderGrid(meetings) {
     gridInner.className = 'grid-inner';
 
     // for each group create a row with inner width = DAYS.length * DAY_WIDTH
-    GROUPS.forEach((name, gi) => {
+    Object.keys(GROUPS).forEach((name, gi) => {
+        console.log(name, gi)
         const row = document.createElement('div');
         row.className = 'group-row';
         row.dataset.groupIndex = gi;
@@ -284,7 +286,9 @@ function renderGrid(meetings) {
 
         const gLabel = document.createElement('div');
         gLabel.className = 'group-label';
+        gLabel.id = `group${gi}`
         gLabel.textContent = name;
+        gLabel.style.color = GROUPS[name]
         groupsColumn.appendChild(gLabel);
     });
 
