@@ -179,7 +179,6 @@ button.muted {
 /* grid inner and rows */
 .grid-inner {
     position: relative;
-    white-space: nowrap;
 }
 /* vertical day separators overlay */
 .grid-lines {
@@ -196,18 +195,18 @@ button.muted {
     top: 0;
     bottom: 0;
     width: 1px;
-    background: rgba(15, 23, 42, 0.08);
+    background: rgba(15, 23, 42, 0.13);
 }
 .grid-lines .vline.month-start {
     width: 2px;
-    background: rgba(15, 23, 42, 0.18);
+    background: rgba(15, 23, 42, 0.25);
 }
 .grid-lines .hline {
     position: absolute;
     left: 0;
     right: 0;
     height: 1px;
-    background: rgba(15, 23, 42, 0.08);
+    background: rgba(15, 23, 42, 0.13);
 }
 .group-row {
     height: var(--row-height);
