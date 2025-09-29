@@ -14,6 +14,19 @@ const GROUPS = [
     "Deep Core"
 ];
 
+const COLORS = ['#008000',
+    '#d9af70',
+    '#9f191b',
+    '#7cb1c3',
+    '#ef9b02',
+    '#b503b5',
+    '#808080',
+    '#5e92f1',
+    '#5700ff',
+    '#ff5a00',
+    '#333'
+]
+
 // Period: 2025-09-01 .. 2026-12-31 (inclusive)
 const START_DATE = new Date(2025, 8, 1);
 const END_DATE = new Date(2026, 11, 31);
@@ -42,14 +55,14 @@ const FIREBASE_DOC_ID = 'schedule-meetings-data';
 // Initialize Firebase when modules are ready
 function initFirebase() {
     if (!window.firebaseModules) return;
-    
+
     try {
         const { initializeApp, getFirestore } = window.firebaseModules;
         firebaseApp = initializeApp(FIREBASE_CONFIG);
         firestore = getFirestore(firebaseApp);
         firebaseEnabled = true;
         updateFirebaseStatus('✅ Подключено к Firebase');
-        
+
         // Load data from Firebase on initialization
         loadFromFirebase();
     } catch (error) {
@@ -91,7 +104,7 @@ const DAYS = new Array(TOTAL_DAYS).fill(0).map((_,i) => {
 // Firebase storage helpers
 async function saveToFirebase(meetings) {
     if (!firebaseEnabled || !firestore || !window.firebaseModules) return;
-    
+
     try {
         const { doc, setDoc } = window.firebaseModules;
         const docRef = doc(firestore, 'meetings', FIREBASE_DOC_ID);
@@ -108,27 +121,27 @@ async function saveToFirebase(meetings) {
 
 async function loadFromFirebase() {
     if (!firebaseEnabled || !firestore || !window.firebaseModules) return null;
-    
+
     try {
         const { doc, getDoc } = window.firebaseModules;
         const docRef = doc(firestore, 'meetings', FIREBASE_DOC_ID);
         const docSnap = await getDoc(docRef);
-        
+
         if (docSnap.exists()) {
             const data = docSnap.data();
             const firebaseMeetings = validateMeetings(data.meetings || []);
-            
+
             // Update the global meetings variable and re-render
             meetings = firebaseMeetings;
             renderGrid(meetings);
-            
+
             // Also save to localStorage as backup
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(firebaseMeetings));
             } catch(e) {
                 console.warn('localStorage backup failed:', e);
             }
-            
+
             updateFirebaseStatus('✅ Загружено из Firebase');
             return firebaseMeetings;
         } else {
@@ -154,8 +167,8 @@ function loadMeetings() {
 }
 
 function saveMeetings(arr) {
-    try { 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); 
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
         // Also save to Firebase asynchronously
         if (firebaseEnabled) {
             saveToFirebase(arr);
@@ -285,6 +298,7 @@ function renderGrid(meetings) {
         const gLabel = document.createElement('div');
         gLabel.className = 'group-label';
         gLabel.textContent = name;
+        gLabel.style.color = COLORS[gi]
         groupsColumn.appendChild(gLabel);
     });
 
